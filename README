@@ -1,0 +1,53 @@
+;;;
+;;; README
+;;;
+;;; Brief documentation for lh-usb.
+;;;
+;;; Initial version: Alastair Bridgewater, December 18, 2008.
+;;;
+
+
+This package is a set of bindings for accessing Linux usbdevfs from
+SBCL.  It is not yet complete, but is sufficiently functional to be
+able to write drivers for some devices.  It has been tested with SBCL
+1.0.11 on an amd64 linux system.
+
+An ASDF system definition has been provided, and the library as a
+whole might even be ASDF-INSTALLable at some point.
+
+Some minimal API documentation has been written.  At this point I
+would hesitate to describe any part of the API as stable.
+
+Condition handling has the beginnings of a usable hierarchy, though
+documentation for it has yet to be written.  It has been designed to
+allow a program to make an intelligent decision about how to handle
+various situations and to hopefully be extendable in the future
+without breaking code written to use the present version.
+
+The current implementation may not be GC-safe, as data buffers and
+whatnot are not pinned during system calls.  Should this prove to be a
+problem, the critical items to pin are the underlying simple-vectors
+for the data buffers used by USB-CONTROL and USB-BULK.  To obtain a
+pointer to these vectors, call SB-KERNEL:%ARRAY-DATA-VECTOR on the
+buffers.
+
+A simple example of obtaining access to a device by ID (the specific
+device ID parameters I have used are for my BusLink han14xs MP3
+player) and reading the device descriptor via a control transfer is as
+follows:
+
+  (let ((dev (apply #'open-usb-device
+                    (first (find-usb-devices-by-id #x0e18 #x0002))))
+        (data (make-array 18 :element-type '(unsigned-byte 8)
+                          :fill-pointer t))
+        (get_descriptor 6)
+        (device 1))
+    (usb-control dev #x80 get_descriptor
+                 (dpb device (byte 8 8) 0)
+                 0 data)
+    data)
+
+Note that it is fairly likely that programming will have to be done
+with USB specification and Linux kernel documentation in hand.
+
+;;; EOF

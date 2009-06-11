@@ -1,0 +1,245 @@
+LH-USB API documentation.
+
+
+INTRODUCTION
+
+This is just a quick reference to the various LH-USB
+functions.  It would probably be good to read this document
+in conjunction with the USB 2.0 specification and the Linux
+kernel USB documentation, particularly the section on usbfs.
+
+Beyond the interfaces described here (all exported from the
+LH-USB package), all of the IOCTL constants and structures
+required for direct access to the Linux usbfs interface are
+exported from the LH-USB-IOCTLS package.
+
+
+FINDING DEVICES
+
+____________________________________________________________
+read-usb-devices                                    Function
+
+Arguments: None.
+
+Values: Returns the contents of /proc/bus/usb/devices as a
+string.
+
+Purpose: Obtain the contents of a system file not readable
+via normal Lisp stream functions.
+
+Notes:
+
+Parsing the result of this function is one of the two ways
+for a program to find a suitable device to use without
+resorting to having the user provide BUS and DEVICE numbers
+directly (the other is using FIND-USB-DEVICES-BY-ID).
+
+____________________________________________________________
+open-usb-device                                     Function
+    bus device
+
+Arguments:
+    BUS is the bus number of the USB bus to which the device
+is connected.
+    DEVICE is the number of the device on the bus.
+
+Values: Returns a stream to the device file for the device
+DEVICE on USB bus BUS.
+
+Purpose: Open a connection to a device.
+
+____________________________________________________________
+find-usb-devices-by-id                              Function
+    vendor prodid
+
+Arguments:
+    VENDOR is a 16-bit vendor ID number.
+    PRODID is a 16-bit product ID number.
+
+Values: Returns a list of (bus device) lists for each device
+found with the same manufacturer and product IDs.
+
+Purpose: Finding devices.
+
+Notes:
+
+The (bus device) lists that are returned from this function
+are suitable for passing to OPEN-USB-DEVICE via APPLY.
+
+This is one of two ways for a program to find a suitable
+device to use without having the user provide BUS and DEVICE
+numbers directly (the other being parsing the output of
+READ-USB-DEVICES).
+
+
+DRIVERS AND INTERFACES
+
+____________________________________________________________
+usb-disconnect                                      Function
+    dev interface
+
+Arguments:
+    DEV is an open stream returned from OPEN-USB-DEVICE.
+    INTERFACE is the number of the interface on which to
+operate.
+
+Values: None.
+
+Purpose: Disconnects the kernel driver for a device from an
+interface.
+
+____________________________________________________________
+usb-connect                                         Function
+    dev interface
+
+Arguments:
+    DEV is an open stream returned from OPEN-USB-DEVICE.
+    INTERFACE is the number of the interface on which to
+operate.
+
+Values: None.
+
+Purpose: Reconnects the kernel driver for a device to an
+interface.
+
+____________________________________________________________
+usb-claim-interface                                 Function
+    dev interface
+
+Arguments:
+    DEV is an open stream returned from OPEN-USB-DEVICE.
+    INTERFACE is the number of the interface on which to
+operate.
+
+Values: None.
+
+Purpose: Claim an interface so that it cannot be used by
+other drivers until it is released.
+
+Notes:
+
+Performing a transfer on any endpoint within an interface
+will automatically claim the interface.
+
+This function is useful for when a program needs to hold an
+interface for itself in advance of performing any transfers
+on its endpoints.
+
+____________________________________________________________
+usb-release-interface                               Function
+    dev interface
+
+Arguments:
+    DEV is an open stream returned from OPEN-USB-DEVICE.
+    INTERFACE is the number of the interface on which to
+operate.
+
+Values: None.
+
+Purpose: Release an interface so that it can be claimed by
+other drivers.
+
+Notes:
+
+Closing the device stream for a device will automatically
+release any interfaces claimed via that stream.
+
+This function is useful for when a program wishes to
+relinquish its claim upon a device (or an interface within a
+device) without losing its access to the rest of the device.
+
+____________________________________________________________
+usb-get-driver                                      Function
+    dev interface
+
+Arguments:
+    DEV is an open stream returned from OPEN-USB-DEVICE.
+    INTERFACE is the number of the interface on which to
+operate.
+
+Values: A string with the name of a kernel device driver in
+charge of an interface or NIL if the interface is unclaimed.
+
+Purpose: Determine the current claimant to an interface.
+
+
+SYNCHRONOUS TRANSFER
+
+____________________________________________________________
+usb-timeout-error                                  Condition
+
+Description:
+
+This condition is raised when a synchronous USB transfer
+times out.
+
+____________________________________________________________
+usb-control                                         Function
+    dev request-type request value index data
+
+Arguments:
+    DEV is an open stream returned from OPEN-USB-DEVICE.
+    REQUEST-TYPE is per the USB 2.0 specification for SETUP
+packets / control transfers, and controls the direction of
+data transfer.
+    REQUEST is per the USB 2.0 specification for SETUP
+packets / control transfers.
+    VALUE is per the USB 2.0 specification for SETUP packets
+/ control transfers.
+    INDEX is per the USB 2.0 specification for SETUP packets
+/ control transfers.
+    DATA is a vector of :element-type (unsigned-byte 8) with
+a fill-pointer set to the expected transfer length.
+
+Values: Returns the actual length of data transferred.
+
+Purpose: Synchronous USB control transfer.
+
+Notes:
+
+I'm fairly sure that this interface is stupid with respect
+to the use of DATA and fill-pointers.
+
+There is no timeout control exposed yet, though this
+function will raise a USB-TIMEOUT condition if the operation
+times out (the timeout length has been defined arbitrarily).
+
+____________________________________________________________
+usb-bulk                                            Function
+    dev endpoint data &optional (offset 0)
+
+Arguments:
+    DEV is an open stream returned from OPEN-USB-DEVICE.
+    ENDPOINT is the bulk transfer endpoint ID.  The endpoint
+ID also indicates the direction of the transfer.
+    DATA is a vector of :element-type (unsigned-byte 8) with
+a fill pointer set to OFFSET plus the desired transfer
+length.
+    OFFSET is an offset within DATA from which to start the
+transfer.
+
+Values: Returns OFFSET plus the actual length of data
+transferred.
+
+Purpose: Synchronous USB bulk data transfer.
+
+Notes:
+
+Like USB-CONTROL, I'm fairly sure that this interface is
+stupid with respect to DATA, fill pointers and OFFSET.
+
+There is no timeout control exposed yet, though this
+function will raise a USB-TIMEOUT condition if the operation
+times out (the timeout length has been defined arbitrarily).
+
+
+ASYNCHRONOUS TRANSFER
+
+At this point, there is no direct support for asynchronous transfers,
+which are required for isochronous and interrupt transfer types.  If
+you need to use such endpoints there is an example of using the IOCTL
+interface directly to set up an URB for an interrupt transfer in a
+comment at the end of wrappers.lisp.
+
+
+EOF

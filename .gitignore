@@ -1,0 +1,19 @@
+\#*
+*~
+*.c
+*.h
+*.data
+*.o
+*.a
+*.fas
+*.fasb
+*.fasl
+
+# win32
+*.manifest
+*.lib
+*.implib
+*.exp
+*.obj
+*.ilk
+*.pdb
