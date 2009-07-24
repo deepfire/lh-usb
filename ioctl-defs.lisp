@@ -177,7 +177,7 @@
 ;;; Thin portability aide.
 
 (defun stream-ioctl (stream ioctl param)
-  "Invoke a UNIX IOCTL on the fd associated with STREAM, pissing it PARAM."
+  "Invoke a UNIX IOCTL with PARAM on the fd associated with STREAM."
   #+sbcl
   (sb-unix:unix-ioctl (sb-sys:fd-stream-fd stream) ioctl param))
 
