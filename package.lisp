@@ -134,7 +134,7 @@
    "USB-TIMEOUT-ERROR"
 
    ;; Finding devices.
-   "READ-USB-DEVICES"
+   "SYSFS-QUERY-USB-DEVICES"
    "OPEN-USB-DEVICE"
    "FIND-USB-DEVICES-BY-ID"))
 
