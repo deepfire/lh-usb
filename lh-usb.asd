@@ -27,6 +27,7 @@
 ;;;
 
 (asdf:defsystem :lh-usb
+  :depends-on (:cffi)
   :serial t
   :components
   ((:file "package")

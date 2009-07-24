@@ -27,7 +27,7 @@
 ;;;
 
 (cl:defpackage :lh-usb-ioctls
-  (:use :common-lisp :sb-alien)
+  (:use :common-lisp :cffi)
   (:export
 
    ;; Structure names.
@@ -104,10 +104,13 @@
    "USBDEVFS_RESET"
    "USBDEVFS_CLEAR_HALT"
    "USBDEVFS_DISCONNECT"
-   "USBDEVFS_CONNECT"))
+   "USBDEVFS_CONNECT"
+
+   ;; Thin portability aide.
+   "STREAM-IOCTL"))
 
 (cl:defpackage :lh-usb
-  (:use :common-lisp :sb-alien :lh-usb-ioctls)
+  (:use :common-lisp :cffi :lh-usb-ioctls)
   (:export
 
    ;; Status / Management wrappers.

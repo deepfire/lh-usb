@@ -59,130 +59,105 @@
 
 (defun usb-disconnect (dev interface)
   "Persuade the kernel driver to relinquish its claim upon a device."
-  (with-alien ((ctrl usbdevfs-ioctl))
-    (setf (slot ctrl 'ioctl-code) USBDEVFS_DISCONNECT)
-    (setf (slot ctrl 'ifno) interface)
-    (setf (slot ctrl 'data) nil)
-    (multiple-value-bind (successp error)
-	(sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
-			    USBDEVFS_IOCTL
-			    (alien-sap (addr ctrl)))
+  (with-foreign-object (ctrl 'usbdevfs-ioctl)
+    (setf (foreign-slot-value ctrl 'usbdevfs-ioctl 'ioctl-code) USBDEVFS_DISCONNECT
+          (foreign-slot-value ctrl 'usbdevfs-ioctl 'ifno) interface
+          (foreign-slot-value ctrl 'usbdevfs-ioctl 'data) (null-pointer))
+    (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_IOCTL ctrl)
       (unless successp
 	(error 'usb-ioctl-error :device dev
 	       :operation 'usbdevfs_disconnnect :errno error)))))
 
 (defun usb-connect (dev interface)
   "Request the kernel driver to reassert its claim upon a device."
-  (with-alien ((ctrl usbdevfs-ioctl))
-    (setf (slot ctrl 'ioctl-code) USBDEVFS_CONNECT)
-    (setf (slot ctrl 'ifno) interface)
-    (setf (slot ctrl 'data) nil)
-    (multiple-value-bind (successp error)
-	(sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
-			    USBDEVFS_IOCTL
-			    (alien-sap (addr ctrl)))
+  (with-foreign-object (ctrl 'usbdevfs-ioctl)
+    (setf (foreign-slot-value ctrl 'usbdevfs-ioctl 'ioctl-code) USBDEVFS_CONNECT
+          (foreign-slot-value ctrl 'usbdevfs-ioctl 'ifno) interface
+          (foreign-slot-value ctrl 'usbdevfs-ioctl 'data) (null-pointer))
+    (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_IOCTL ctrl)
       (unless successp
 	(error 'usb-ioctl-error :device dev
 	       :operation 'usbdevfs_connect :errno error)))))
 
 (defun usb-claim-interface (dev interface)
   "Prevent other drivers from using an interface."
-  (with-alien ((iface unsigned-long))
-    (setf iface interface)
-    (multiple-value-bind (successp error)
-	(sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
-			    USBDEVFS_CLAIMINTERFACE
-			    (alien-sap (addr iface)))
+  (with-foreign-object (iface :ulong)
+    (setf (mem-ref iface :ulong) interface)
+    (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_CLAIMINTERFACE iface)
       (unless successp
-	(error 'usb-ioctl-error :device dev
-	       :operation 'usbdevfs_claiminterface :errno error)))))
+        (error 'usb-ioctl-error :device dev
+               :operation 'usbdevfs_claiminterface :errno error)))))
 
 (defun usb-release-interface (dev interface)
   "Allow other drivers to use an interface."
-  (with-alien ((iface unsigned-long))
-    (setf iface interface)
-    (multiple-value-bind (successp error)
-	(sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
-			    USBDEVFS_RELEASEINTERFACE
-			    (alien-sap (addr iface)))
+  (with-foreign-object (iface :ulong)
+    (setf (mem-ref iface :ulong) interface)
+    (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_RELEASEINTERFACE iface)
       (unless successp
 	(error 'usb-ioctl-error :device dev
 	       :operation 'usbdevfs_releaseinterface :errno error)))))
 
 (defun usb-get-driver (dev interface)
   "Find out which driver has claimed an interface."
-  (with-alien ((driver usbdevfs-getdriver))
-    (setf (slot driver 'interface) interface)
-    (multiple-value-bind (successp error)
-	(sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
-			    USBDEVFS_GETDRIVER
-			    (alien-sap (addr driver)))
+  (with-foreign-object (driver 'usbdevfs-getdriver)
+    (setf (foreign-slot-value driver 'usbdevfs-getdriver 'interface) interface)
+    (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_GETDRIVER driver)
       (unless successp
 	(if (= error ENODATA)
 	    (return-from usb-get-driver nil)
 	    (error 'usb-ioctl-error :device dev
 		   :operation 'usbdevfs_getdriver :errno error))))
-    (cast (slot driver 'driver) c-string)))
+    (foreign-string-to-lisp (foreign-slot-value driver 'usbdevfs-getdriver 'driver))))
 
 (defun usb-reset (dev)
   "Persuade the kernel driver to perform a USB device reset."
-  (multiple-value-bind (successp error)
-      (sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
-                          USBDEVFS_RESET
-                          0)
+  (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_RESET 0)
     (unless successp
       (error 'usb-ioctl-error :device dev
              :operation 'usbdevfs_reset :errno error))))
 
-(defun usb-control (dev request-type request value index data)
+(defun usb-control (dev request-type request value index iovec)
   "Synchronous USB control transfer."
-  (with-alien ((ctrl usbdevfs-ctrltransfer))
-    (setf (slot ctrl 'request-type) request-type
-	  (slot ctrl 'request) request
-	  (slot ctrl 'value) value
-	  (slot ctrl 'index) index
-	  (slot ctrl 'length) (length data)
-	  (slot ctrl 'timeout) 50
-	  (slot ctrl 'data) (sb-sys:vector-sap (sb-kernel:%array-data-vector data)))
-    (multiple-value-bind (successp error)
-	(sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
-			    USBDEVFS_CONTROL
-			    (alien-sap (addr ctrl)))
-      (unless successp
-	(if (= error ETIMEDOUT)
-	    (error 'usb-timeout-error :device dev
-		   :operation 'usbdevfs_control :errno error)
-	    (error 'usb-ioctl-error :device dev
-		   :operation 'usbdevfs_control :errno error))))
-    (setf (fill-pointer data) (slot ctrl 'length))))
+  (with-foreign-object (ctrl 'usbdevfs-ctrltransfer)
+    (with-pointer-to-vector-data (data iovec)
+      (setf (foreign-slot-value ctrl 'usbdevfs-ctrltransfer 'request-type) request-type
+            (foreign-slot-value ctrl 'usbdevfs-ctrltransfer 'request) request
+            (foreign-slot-value ctrl 'usbdevfs-ctrltransfer 'value) value
+            (foreign-slot-value ctrl 'usbdevfs-ctrltransfer 'index) index
+            (foreign-slot-value ctrl 'usbdevfs-ctrltransfer 'length) (length iovec)
+            (foreign-slot-value ctrl 'usbdevfs-ctrltransfer 'timeout) 50
+            (foreign-slot-value ctrl 'usbdevfs-ctrltransfer 'data) data)
+      (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_CONTROL ctrl)
+        (unless successp
+          (if (= error ETIMEDOUT)
+              (error 'usb-timeout-error :device dev
+                     :operation 'usbdevfs_control :errno error)
+              (error 'usb-ioctl-error :device dev
+                     :operation 'usbdevfs_control :errno error))))
+      (foreign-slot-value ctrl 'usbdevfs-ctrltransfer 'length))))
 
-(defun usb-bulk (dev endpoint data &optional (offset 0))
+(defun usb-bulk (dev endpoint iovec &optional (offset 0))
   "Synchronous USB bulk transfer."
-  (with-alien ((bulk usbdevfs-bulktransfer))
-    (setf (slot bulk 'endpoint) endpoint
-	  (slot bulk 'length) (- (length data) offset)
-	  (slot bulk 'timeout) 50
-	  (slot bulk 'data) (sb-sys:sap+ (sb-sys:vector-sap (sb-kernel:%array-data-vector data)) offset))
-    (multiple-value-bind (successp error)
-	(sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
-			    USBDEVFS_BULK
-			    (alien-sap (addr bulk)))
-      (unless successp
-	(if (= error ETIMEDOUT)
-	    (error 'usb-timeout-error :device dev
-		   :operation 'usbdevfs_bulk :errno error)
-	    (error 'usb-ioctl-error :device dev
-		   :operation 'usbdevfs_bulk :errno error))))
-    (setf (fill-pointer data) (+ (slot bulk 'length) offset))))
+  (with-foreign-object (bulk 'usbdevfs-bulktransfer)
+    (with-pointer-to-vector-data (data-ptr iovec)
+      (setf (foreign-slot-value bulk 'usbdevfs-bulktransfer 'endpoint) endpoint
+            (foreign-slot-value bulk 'usbdevfs-bulktransfer 'length) (- (length iovec) offset)
+            (foreign-slot-value bulk 'usbdevfs-bulktransfer 'timeout) 50
+            (foreign-slot-value bulk 'usbdevfs-bulktransfer 'data) (inc-pointer data-ptr offset))
+      (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_BULK bulk)
+        (unless successp
+          (if (= error ETIMEDOUT)
+              (error 'usb-timeout-error :device dev
+                     :operation 'usbdevfs_bulk :errno error)
+              (error 'usb-ioctl-error :device dev
+                     :operation 'usbdevfs_bulk :errno error))))
+      (foreign-slot-value bulk 'usbdevfs-bulktransfer 'length))))
 
 (defun usb-clear-halt (dev endpoint)
   "Clear the halt feature of an USB interface endpoint."
-  (with-alien ((endpoint-arg unsigned-int))
-    (setf endpoint-arg endpoint)
-    (multiple-value-bind (successp error)
-	(sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
-			    USBDEVFS_CLEAR_HALT
-			    (alien-sap (addr endpoint-arg)))
+  (with-foreign-object (endpoint-arg :uint)
+    (setf (mem-ref endpoint-arg :uint) endpoint)
+    (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_CLEAR_HALT endpoint-arg)
       (unless successp
         (error 'usb-ioctl-error :device dev
                :operation 'usbdevfs_clear_halt :errno error)))))
@@ -194,39 +169,39 @@ interrupt (or possibly isochronous) transfer, the following is
 something I used a while back, but never bothered figuring out how to
 provide a high-level interface for.
 
-(with-alien ((urb usbdevfs-urb)
-		     (buf (array (unsigned 8) 8))
-		     (ptr (* usbdevfs-urb)))
-	  (setf (slot urb 'type) +usbdevfs-urb-type-interrupt+)
-	  (setf (slot urb 'endpoint) #x81)
-	  (setf (slot urb 'flags) 0)
-	  (setf (slot urb 'buffer) (addr buf))
-	  (setf (slot urb 'buffer-length) 8)
-	  (setf (slot urb 'signr) #xffffffff)
-	  (setf (slot urb 'actual-length) 0)
-	  (setf (slot urb 'number-of-packets) 0)
-	  (setf (slot urb 'usercontext) nil)
+(with-foreign-objects ((urb usbdevfs-urb)
+                       (buf :uchar 8)
+                       (ptr (:pointer usbdevfs-urb)))
+  (setf (foreign-slot-value urb 'type) +usbdevfs-urb-type-interrupt+)
+  (setf (foreign-slot-value urb 'endpoint) #x81)
+  (setf (foreign-slot-value urb 'flags) 0)
+  (setf (foreign-slot-value urb 'buffer) buf)
+  (setf (foreign-slot-value urb 'buffer-length) 8)
+  (setf (foreign-slot-value urb 'signr) #xffffffff)
+  (setf (foreign-slot-value urb 'actual-length) 0)
+  (setf (foreign-slot-value urb 'number-of-packets) 0)
+  (setf (foreign-slot-value urb 'usercontext) nil)
 
-	  (setf (slot urb 'error-count) 0)
-	  (setf (slot urb 'start-frame) 0)
-	  (setf (slot urb 'status) 0)
+  (setf (foreign-slot-value urb 'error-count) 0)
+  (setf (foreign-slot-value urb 'start-frame) 0)
+  (setf (foreign-slot-value urb 'status) 0)
 	  
-	  (multiple-value-bind (successp error)
-	      (sb-unix:unix-ioctl (sb-sys:fd-stream-fd cl-user::*dev*)
-				  USBDEVFS_SUBMITURB
-				  (alien-sap (addr urb)))
-	    (unless successp
-	      (error "USBDEVFS_SUBMITURB failed: ~S" (sb-int:strerror error))))
+  (multiple-value-bind (successp error)
+      (sb-unix:unix-ioctl (sb-sys:fd-stream-fd cl-user::*dev*)
+                          USBDEVFS_SUBMITURB
+                          urb)
+    (unless successp
+      (error "USBDEVFS_SUBMITURB failed: ~S" (sb-int:strerror error))))
 	  
-	  (setf ptr nil)
-	  (multiple-value-bind (successp error)
-	      (sb-unix:unix-ioctl (sb-sys:fd-stream-fd cl-user::*dev*)
-				  USBDEVFS_REAPURB
-				  (alien-sap (addr ptr)))
-	    (unless successp
-	      (error "USBDEVFS_REAPURB failed: ~S" (sb-int:strerror error))))
+  (setf ptr nil)
+  (multiple-value-bind (successp error)
+      (sb-unix:unix-ioctl (sb-sys:fd-stream-fd cl-user::*dev*)
+                          USBDEVFS_REAPURB
+                          ptr)
+    (unless successp
+      (error "USBDEVFS_REAPURB failed: ~S" (sb-int:strerror error))))
 	  
-	  (inspect (list urb buf ptr)))
+  (inspect (list urb buf ptr)))
 |#
 
 ;;; EOF
