@@ -136,12 +136,12 @@
                      :operation 'usbdevfs_control :errno error))))
       (foreign-slot-value ctrl 'usbdevfs-ctrltransfer 'length))))
 
-(defun usb-bulk (dev endpoint iovec &optional (offset 0))
+(defun usb-bulk (dev endpoint iovec &optional (offset 0) (iolen (- (length iovec) offset)))
   "Synchronous USB bulk transfer."
   (with-foreign-object (bulk 'usbdevfs-bulktransfer)
     (with-pointer-to-vector-data (data-ptr iovec)
       (setf (foreign-slot-value bulk 'usbdevfs-bulktransfer 'endpoint) endpoint
-            (foreign-slot-value bulk 'usbdevfs-bulktransfer 'length) (- (length iovec) offset)
+            (foreign-slot-value bulk 'usbdevfs-bulktransfer 'length) iolen
             (foreign-slot-value bulk 'usbdevfs-bulktransfer 'timeout) 50
             (foreign-slot-value bulk 'usbdevfs-bulktransfer 'data) (inc-pointer data-ptr offset))
       (multiple-value-bind (successp error) (stream-ioctl dev USBDEVFS_BULK bulk)
