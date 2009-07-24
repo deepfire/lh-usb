@@ -124,6 +124,16 @@
 		   :operation 'usbdevfs_getdriver :errno error))))
     (cast (slot driver 'driver) c-string)))
 
+(defun usb-reset (dev)
+  "Persuade the kernel driver to perform a USB device reset."
+  (multiple-value-bind (successp error)
+      (sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
+                          USBDEVFS_RESET
+                          0)
+    (unless successp
+      (error 'usb-ioctl-error :device dev
+             :operation 'usbdevfs_reset :errno error))))
+
 (defun usb-control (dev request-type request value index data)
   "Synchronous USB control transfer."
   (with-alien ((ctrl usbdevfs-ctrltransfer))
@@ -164,6 +174,18 @@
 	    (error 'usb-ioctl-error :device dev
 		   :operation 'usbdevfs_bulk :errno error))))
     (setf (fill-pointer data) (+ (slot bulk 'length) offset))))
+
+(defun usb-clear-halt (dev endpoint)
+  "Clear the halt feature of an USB interface endpoint."
+  (with-alien ((endpoint-arg unsigned-int))
+    (setf endpoint-arg endpoint)
+    (multiple-value-bind (successp error)
+	(sb-unix:unix-ioctl (sb-sys:fd-stream-fd dev)
+			    USBDEVFS_CLEAR_HALT
+			    (alien-sap (addr endpoint-arg)))
+      (unless successp
+        (error 'usb-ioctl-error :device dev
+               :operation 'usbdevfs_clear_halt :errno error)))))
 
 #|
 

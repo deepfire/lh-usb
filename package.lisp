@@ -116,10 +116,12 @@
    "USB-CLAIM-INTERFACE"
    "USB-RELEASE-INTERFACE"
    "USB-GET-DRIVER"
+   "USB-RESET"
 
    ;; Synchronous transfer wrappers.
    "USB-CONTROL"
    "USB-BULK"
+   "USB-CLEAR-HALT"
 
    ;; Exceptional situations.
    "USB-ERROR"
