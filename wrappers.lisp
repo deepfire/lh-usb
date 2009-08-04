@@ -46,7 +46,7 @@
 	     (let ((operation (usb-ioctl-error-operation condition))
 		   (errno (usb-ioctl-error-errno condition)))
 	       (format stream "~S failed, errno ~S (~S)"
-		       operation errno (sb-int:strerror errno))))))
+		       operation errno (decode-errno errno))))))
 
 (define-condition usb-timeout-error (usb-ioctl-error)
   ()

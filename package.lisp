@@ -107,7 +107,8 @@
    "USBDEVFS_CONNECT"
 
    ;; Thin portability aide.
-   "STREAM-IOCTL"))
+   "STREAM-IOCTL"
+   "DECODE-ERRNO"))
 
 (cl:defpackage :lh-usb
   (:use :common-lisp :cffi :lh-usb-ioctls)

@@ -181,5 +181,8 @@
   #+sbcl
   (sb-unix:unix-ioctl (sb-sys:fd-stream-fd stream) ioctl param))
 
+(defun decode-errno (errno)
+  "Produce a string explanation of ERRNO."
+  #+sbcl (sb-int:strerror errno))
 
 ;;; EOF
