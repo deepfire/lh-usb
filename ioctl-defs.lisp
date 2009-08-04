@@ -176,10 +176,19 @@
 
 ;;; Thin portability aide.
 
+#+(and (not sbcl) unix)
+(defcfun ioctl :int
+  (fd :uint)
+  (ioctl-nr :int)
+  (param :pointer))
+
 (defun stream-ioctl (stream ioctl param)
-  "Invoke a UNIX IOCTL with PARAM on the fd associated with STREAM."
+  "Invoke a UNIX IOCTL with PARAM on the fd associated with STREAM.
+PARAM must be a CFFI pointer."
   #+sbcl
-  (sb-unix:unix-ioctl (sb-sys:fd-stream-fd stream) ioctl param))
+  (sb-unix:unix-ioctl (sb-sys:fd-stream-fd stream) ioctl param)
+  #+ecl
+  (ioctl (si:file-stream-fd stream) ioctl param))
 
 (defun decode-errno (errno)
   "Produce a string explanation of ERRNO."
