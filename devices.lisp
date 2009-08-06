@@ -39,16 +39,16 @@
   ;; First find out real devices with device and vendor IDs, then work
   ;; down from that.
   (let ((actual-devices (directory #p"/sys/bus/usb/devices/*/idProduct")))
-    (flet ((read-hex-token (directory name)
+    (flet ((read-token (directory name base)
              (with-open-file (f (make-pathname :directory directory :name name))
-               (let ((*read-base* #x10)
+               (let ((*read-base* base)
                      (*read-eval* nil))
                  (read f)))))
       (mapcar (lambda (dir)
-                (make-usb-device :bus-nr (read-hex-token dir "busnum")
-                                 :device-nr (read-hex-token dir "devnum")
-                                 :vendor-id (read-hex-token dir "idVendor")
-                                 :product-id (read-hex-token dir "idProduct")))
+                (make-usb-device :bus-nr (read-token dir "busnum" 10)
+                                 :device-nr (read-token dir "devnum" 10)
+                                 :vendor-id (read-token dir "idVendor" #x10)
+                                 :product-id (read-token dir "idProduct" #x10)))
               (mapcar #'pathname-directory actual-devices)))))
 
 
