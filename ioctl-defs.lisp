@@ -185,13 +185,18 @@
 (defun stream-ioctl (stream ioctl param)
   "Invoke a UNIX IOCTL with PARAM on the fd associated with STREAM.
 PARAM must be a CFFI pointer."
+  #-(or sbcl ecl ccl)
+  (error "Not implemented: ~S." 'stream-ioctl)
   #+sbcl
   (sb-unix:unix-ioctl (sb-sys:fd-stream-fd stream) ioctl param)
   #+ecl
-  (ioctl (si:file-stream-fd stream) ioctl param))
+  (ioctl (si:file-stream-fd stream) ioctl param)
+  #+ccl
+  (ioctl (ccl::ioblock-device (ccl::stream-ioblock stream t)) ioctl param))
 
 (defun decode-errno (errno)
   "Produce a string explanation of ERRNO."
+  #-sbcl (declare (ignore errno))
   #+sbcl (sb-int:strerror errno))
 
 ;;; EOF
