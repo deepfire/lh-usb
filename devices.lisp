@@ -38,7 +38,10 @@
   "Returns the list of bus/device id pairs, using the sysfs interface."
   ;; First find out real devices with device and vendor IDs, then work
   ;; down from that.
-  (let ((actual-devices (directory #p"/sys/bus/usb/devices/*/idProduct")))
+  (let ((actual-devices (mapcan (lambda (x)
+                                  (directory (make-pathname :name "idProduct" :defaults x)))
+                                (mapcan #'directory (directory #P"/sys/bus/usb/devices/*"
+                                                               #+ccl :follow-links #+ccl nil)))))
     (flet ((read-token (directory name base)
              (with-open-file (f (make-pathname :directory directory :name name))
                (let ((*read-base* base)
