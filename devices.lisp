@@ -34,6 +34,39 @@
   (vendor-id nil :type (unsigned-byte 16))
   (product-id nil :type (unsigned-byte 16)))
 
+(defun file-abuse-complaint (file)
+  "Return contents of select(2)-abuse-prone files as a string."
+  #+sbcl
+  (with-open-file (devlist file)
+    ;; This "file" violates the usual contract of select(2). An
+    ;; input-ready condition on the file indicates that a device has
+    ;; been connected or disconnected, not that there happens to be
+    ;; more data to read. No select(2) means no serve-event. No
+    ;; serve-event means that we can't use the standard Lisp file I/O,
+    ;; and have to do our own buffering... And, while we're at it, we
+    ;; won't bother doing our own error handling.
+    (let* ((buffers
+     (loop for buf = (make-array #x200
+     :element-type '(unsigned-byte 8)
+     :fill-pointer t)
+    for (len error) = (multiple-value-list
+         (sb-unix:unix-read
+          (sb-sys:fd-stream-fd devlist)
+          (sb-sys:vector-sap
+           (sb-kernel:%array-data-vector buf))
+          #x200))
+    until (or (null len) (zerop len))
+    do (setf (fill-pointer buf) len)
+    collect buf))
+    (combined-buffer (apply #'concatenate
+       '(vector (unsigned-byte 8)) buffers))
+    (file-contents (sb-ext:octets-to-string combined-buffer)))
+      file-contents))
+  #-sbcl
+  (let ((vector (make-array (file-length file) :element-type 'base-char)))
+    (read-sequence vector file)
+    vector))
+
 (defun sysfs-query-usb-devices ()
   "Returns the list of bus/device id pairs, using the sysfs interface."
   ;; First find out real devices with device and vendor IDs, then work
@@ -60,10 +93,7 @@
              (token-path (directory name)
                (make-pathname :directory directory :name name))
              (read-token (directory name base)
-               (with-open-file (f (token-path directory name))
-                 (let ((*read-base* base)
-                       (*read-eval* nil))
-                   (read f)))))
+               (parse-integer (file-abuse-complaint (token-path directory name)) :radix base)))
       (mapcar (lambda (dir)
                 (make-usb-device :bus-nr (if (open (token-path dir "busnum") :direction :probe :if-does-not-exist nil)
                                              (read-token dir "busnum" 10)
