@@ -63,9 +63,11 @@
     (file-contents (sb-ext:octets-to-string combined-buffer)))
       file-contents))
   #-sbcl
-  (let ((vector (make-array (file-length file) :element-type 'base-char)))
-    (read-sequence vector file)
-    vector))
+  (with-open-file (s file)
+    (let ((vector (make-array (file-length s)
+                              :element-type 'base-char)))
+      (read-sequence vector s)
+      vector)))
 
 (defun sysfs-query-usb-devices ()
   "Returns the list of bus/device id pairs, using the sysfs interface."
